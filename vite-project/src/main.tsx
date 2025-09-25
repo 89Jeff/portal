@@ -1,5 +1,3 @@
-// src/main.tsx
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
@@ -32,9 +30,9 @@ const router = createBrowserRouter([
         path: 'consultar-pedido',
         element: <ConsultarPedido />,
       },
-      // AQUI: A rota para o checklist agora aceita um 'id' como parâmetro
+      // AQUI: A rota foi corrigida para não esperar um 'id' na URL
       {
-        path: 'consultar-checklist/:id',
+        path: 'consultar-checklist',
         element: <ConsultarChecklist />,
       },
     ],

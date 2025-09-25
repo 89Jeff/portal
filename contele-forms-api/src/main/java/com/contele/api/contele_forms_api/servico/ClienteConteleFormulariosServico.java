@@ -57,13 +57,14 @@ public class ClienteConteleFormulariosServico {
                 .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> clientResponse.createException())
                 .bodyToMono(RespostaFormulariosContele.class);
     }
+
     public Mono<RespostaTarefasContele> obterTodasAsVisitas() {
         return tasksWebClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/v2/tasks")
-                        .queryParam("include",true)
+                        .path("/api/tasks")
+                        .queryParam("include", "tags")
                         .queryParam("page", 1)
-                        .queryParam("perPage", 100)
+                        .queryParam("perPage", 5000)
                         .build())
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> clientResponse.createException())
@@ -72,12 +73,29 @@ public class ClienteConteleFormulariosServico {
 
     public Mono<Tarefa> obterVisitaPorId(String taskId) {
         return tasksWebClient.get()
-                .uri("/v2/tasks/{taskId}", taskId)
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/tasks/{taskId}")
+                        .queryParam("include", "tags")
+                        .build(taskId))
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> clientResponse.createException())
                 .bodyToMono(Tarefa.class);
     }
 
+    // Método corrigido para buscar uma visita pelo número do pedido da Totvs no campo 'observation'
+    public Mono<Tarefa> obterVisitaPorNumeroTotvs(String numeroTotvs) {
+        return obterTodasAsVisitas()
+                .flatMap(resposta -> {
+                    // Tenta encontrar a primeira tarefa que contenha o número da Totvs na observação.
+                    // A busca é feita de forma case-insensitive e ignora espaços em branco.
+                    return Mono.justOrEmpty(resposta.getTasks().stream()
+                            .filter(tarefa -> {
+                                String observation = tarefa.getObservation();
+                                return observation != null && observation.toLowerCase().contains(numeroTotvs.toLowerCase());
+                            })
+                            .findFirst());
+                });
+    }
 
     /*public Mono<Usuario> obterUsuarioPorId(String userId) {
         return usersWebClient.get()
@@ -85,6 +103,4 @@ public class ClienteConteleFormulariosServico {
                 .retrieve()
                 .bodyToMono(Usuario.class);
     }*/
-
-  
 }

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState } from 'react';
 import axios from 'axios';
 import {
   Container,
@@ -8,6 +7,8 @@ import {
   CircularProgress,
   Box,
   Divider,
+  TextField,
+  Button,
 } from '@mui/material';
 
 // AQUI: A URL base está correta
@@ -23,135 +24,130 @@ interface Form {
   answers: Answer[];
 }
 
-interface ChecklistData {
+interface RespostaFormulariosContele {
   forms: Form[];
 }
 
-interface TarefaData {
-  tarefa_titulo: string;
-  tarefa_id: string;
-  concluded_at: string;
-  users: {
-    user_id: string;
-    // Outras propriedades do usuário...
-  }[];
-}
-
-// AQUI: O tipo de dado do usuário foi ajustado para corresponder ao que a API retorna
-interface UserData {
+interface Tarefa {
   id: string;
-  username: string;
-  email: string;
-  full_name: string;
+  observation: string;
+  status: string;
+  creatorName: string;
+  poi: {
+    name: string;
+    address: {
+      street: string;
+      number: string;
+      city: string;
+    };
+  };
+  userData: {
+    name: string;
+  };
 }
 
 const ConsultarChecklist: React.FC = () => {
-  const [dadosChecklist, setDadosChecklist] = useState<ChecklistData | null>(null);
-  const [dadosTarefa, setDadosTarefa] = useState<TarefaData | null>(null);
-  const [responsavel, setResponsavel] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [numeroTotvs, setNumeroTotvs] = useState('');
+  const [visita, setVisita] = useState<Tarefa | null>(null);
+  const [formularios, setFormularios] = useState<Form[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { id } = useParams<{ id: string }>();
-
-  useEffect(() => {
-    if (!id) {
-      setError('ID não encontrado na URL.');
-      setIsLoading(false);
+  const handleSearch = async () => {
+    if (!numeroTotvs.trim()) {
+      setError('Por favor, digite um número do Ckecklist da Totvs.');
       return;
     }
 
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Fazendo as chamadas em paralelo para otimizar o tempo de carregamento
-        const [checklistResponse, tarefaResponse] = await Promise.all([
-          axios.get<ChecklistData>(`${API_BASE_URL}/form_answers/${id}`),
-          axios.get<TarefaData>(`${API_BASE_URL}/tasks/${id}`), 
-        ]);
+    setIsLoading(true);
+    setError(null);
+    setVisita(null);
+    setFormularios(null);
 
-        const checklistData = checklistResponse.data;
-        const tarefaData = tarefaResponse.data;
-        
-        setDadosChecklist(checklistData);
-        setDadosTarefa(tarefaData);
-        
-        if (tarefaData.users && tarefaData.users.length > 0) {
-          const userId = tarefaData.users[0].user_id;
-          // AQUI: CORREÇÃO! A URL deve incluir o caminho /api/v1
-          const userResponse = await axios.get<UserData>(`${API_BASE_URL}/users/${userId}`);
-          setResponsavel(userResponse.data);
-        } else {
-          setResponsavel(null);
-        }
+    try {
+      // 1. Busca a visita pelo número da Totvs
+      const visitaResponse = await axios.get<Tarefa>(`${API_BASE_URL}/tarefas/totvs/${numeroTotvs}`);
+      const visitaData = visitaResponse.data;
+      setVisita(visitaData);
 
-      } catch (err) {
-        setError('Erro ao carregar os dados. Tente novamente.');
+      // 2. Com o ID da visita, busca os formulários associados
+      const formulariosResponse = await axios.get<RespostaFormulariosContele>(
+        `${API_BASE_URL}/formularios/visita/${visitaData.id}`
+      );
+      setFormularios(formulariosResponse.data.forms);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setError('Visita não encontrada para este número Totvs.');
+      } else {
+        setError('Ocorreu um erro ao buscar os dados. Verifique sua conexão ou tente novamente.');
         console.error(err);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    fetchData();
-  }, [id]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container maxWidth="md" sx={{ mt: 4 }}>
-        <Typography variant="h6" color="error">
-          {error}
-        </Typography>
-      </Container>
-    );
-  }
-
-  if (!dadosChecklist) {
-    return (
-      <Container maxWidth="md" sx={{ mt: 4 }}>
-        <Typography variant="h6">Nenhum dado encontrado para este checklist.</Typography>
-      </Container>
-    );
-  }
-
-  // Tratamento da data
-  const dataConclusao = dadosTarefa?.concluded_at ? new Date(dadosTarefa.concluded_at).toLocaleDateString() : 'N/A';
+  const handleKeyPress = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && !isLoading) {
+      handleSearch();
+    }
+  };
 
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Consultar Checklist
-      </Typography>
-      <Divider sx={{ my: 2 }} />
-      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" gutterBottom>
-          {dadosTarefa?.tarefa_titulo || 'Desconhecido'}
+      <Paper elevation={3} sx={{ p: 4, mb: 4, textAlign: 'center' }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Consultar Checklist
         </Typography>
-        <Typography variant="body1">
-          <strong>ID da Visita:</strong> {id}
-        </Typography>
-        <Typography variant="body1">
-          <strong>Responsável:</strong> {responsavel?.full_name || 'N/A'}
-        </Typography>
-        <Typography variant="body1">
-          <strong>Data de Conclusão:</strong> {dataConclusao}
-        </Typography>
+        <Divider sx={{ my: 2 }} />
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mt: 3 }}>
+          <TextField
+            fullWidth
+            label="Número do Ckecklist Totvs"
+            variant="outlined"
+            value={numeroTotvs}
+            onChange={(e) => setNumeroTotvs(e.target.value)}
+            onKeyDown={handleKeyPress}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSearch}
+            disabled={isLoading}
+            sx={{ px: 4 }}
+          >
+            {isLoading ? <CircularProgress size={24} /> : 'Buscar'}
+          </Button>
+        </Box>
+        {error && (
+          <Typography variant="body1" color="error" sx={{ mt: 2 }}>
+            {error}
+          </Typography>
+        )}
       </Paper>
+      
+      {visita && (
+        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+          <Typography variant="h5" gutterBottom>
+            Detalhes da Visita
+          </Typography>
+          <Typography variant="body1"><strong>Observação:</strong> {visita.observation}</Typography>
+          <Typography variant="body1"><strong>ID da Visita:</strong> {visita.id}</Typography>
+          <Typography variant="body1"><strong>Status:</strong> {visita.status}</Typography>
+          <Typography variant="body1"><strong>Responsável:</strong> {visita.creatorName || visita.userData?.name || 'N/A'}</Typography>
+          <Typography variant="body1"><strong>Cliente:</strong> {visita.poi.name}</Typography>
+          <Typography variant="body1"><strong>Endereço:</strong> {visita.poi.address.street}, {visita.poi.address.number}, {visita.poi.address.city}</Typography>
+        </Paper>
+      )}
 
-      <Typography variant="h5" component="h2" gutterBottom>
-        Detalhes do Formulário
-      </Typography>
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <pre>{JSON.stringify(dadosChecklist.forms, null, 2)}</pre>
-      </Paper>
+      {formularios && (
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <Typography variant="h5" component="h2" gutterBottom>
+            Detalhes do Formulário
+          </Typography>
+          <pre>{JSON.stringify(formularios, null, 2)}</pre>
+        </Paper>
+      )}
     </Container>
   );
 };

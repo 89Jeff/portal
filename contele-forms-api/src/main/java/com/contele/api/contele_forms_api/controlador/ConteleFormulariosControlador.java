@@ -46,4 +46,12 @@ public class ConteleFormulariosControlador {
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
+
+    // Novo endpoint para buscar uma visita pelo número do pedido da Totvs no campo 'observation'
+    @GetMapping("/tarefas/totvs/{numeroTotvs}")
+    public Mono<ResponseEntity<Tarefa>> obterVisitaPorNumeroTotvs(@PathVariable String numeroTotvs) {
+        return clienteConteleFormulariosServico.obterVisitaPorNumeroTotvs(numeroTotvs)
+                .map(ResponseEntity::ok)
+                .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
 }
